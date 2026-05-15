@@ -1,0 +1,149 @@
+version: '3.8'
+
+services:
+  # Simply Agent 后端服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: simply-agent-backend
+    ports:
+      - "${API_PORT:-5000}:5000"
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-development}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///simply_agent.db}
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production-32chars}
+      - API_PORT=${API_PORT:-5000}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - QWEN_API_KEY=${QWEN_API_KEY:-}
+      - CHROMA_HOST=chroma
+      - CHROMA_PORT=8000
+    volumes:
+      # 挂载 SQLite 数据库目录（如果使用 SQLite）
+      - backend-data:/app/data
+      # 挂载日志目录
+      - backend-logs:/app/logs
+    depends_on:
+      - chroma
+    restart: unless-stopped
+    networks:
+      - simply-agent-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/api/health')"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Simply Agent 前端服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: simply-agent-frontend
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - simply-agent-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # Chroma 向量数据库（可选，用于 RAG 功能）
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: simply-agent-chroma
+    ports:
+      - "${CHROMA_PORT:-8000}:8000"
+    volumes:
+      - chroma-data:/chroma/chroma
+    restart: unless-stopped
+    networks:
+      - simply-agent-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # MySQL 数据库（可选，如果需要使用 MySQL 而非 SQLite）
+  mysql:
+    image: mysql:8.0
+    container_name: simply-agent-mysql
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpassword}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-simply_agent}
+      - MYSQL_USER=${MYSQL_USER:-simply_agent}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-agentpassword}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    restart: unless-stopped
+    networks:
+      - simply-agent-network
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    profiles:
+      - mysql  # 使用 --profile mysql 启动
+
+  # PostgreSQL 数据库（可选，如果需要使用 PostgreSQL）
+  postgres:
+    image: postgres:15-alpine
+    container_name: simply-agent-postgres
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-simply_agent}
+      - POSTGRES_USER=${POSTGRES_USER:-simply_agent}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-agentpassword}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - simply-agent-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-simply_agent}"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    profiles:
+      - postgres  # 使用 --profile postgres 启动
+
+volumes:
+  # 后端数据持久化
+  backend-data:
+    driver: local
+  backend-logs:
+    driver: local
+
+  # Chroma 向量数据库持久化
+  chroma-data:
+    driver: local
+
+  # MySQL 数据持久化
+  mysql-data:
+    driver: local
+
+  # PostgreSQL 数据持久化
+  postgres-data:
+    driver: local
+
+networks:
+  simply-agent-network:
+    driver: bridge
