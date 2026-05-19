@@ -9,7 +9,11 @@ Simply Agent Backend - 应用启动入口
     gunicorn -w 4 -b 0.0.0.0:5000 'app:create_app()'
 """
 import os
+from dotenv import load_dotenv
 from app import create_app
+
+# 加载环境变量
+load_dotenv()
 
 app = create_app()
 

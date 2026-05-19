@@ -71,6 +71,15 @@ async function updateConversationTitle(conversationId, title) {
 }
 
 /**
+ * 获取对话的消息列表
+ * @param {string} conversationId - 对话ID
+ * @returns {Promise<Object>} 消息列表
+ */
+async function getConversationMessages(conversationId) {
+  return apiClient.get(`/conversations/${conversationId}/messages`)
+}
+
+/**
  * 导出对话
  * @param {string} conversationId - 对话ID
  * @param {string} [format='json'] - 导出格式 (json, markdown, txt)
@@ -87,5 +96,6 @@ export default {
   deleteConversations,
   clearConversation,
   updateConversationTitle,
+  getConversationMessages,
   exportConversation
 }

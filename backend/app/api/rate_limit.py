@@ -17,18 +17,18 @@ class RateLimiter:
     使用滑动窗口算法实现请求限流
     """
 
-    def __init__(self, default_limit=10, default_window=60):
+    def __init__(self, default_limit=100, default_window=60):
         """
         初始化限流器
 
         Args:
-            default_limit: 默认请求数限制
+            default_limit: 默认请求数限制（提高到100以支持正常的前端轮询）
             default_window: 默认时间窗口（秒）
         """
         self.default_limit = default_limit
         self.default_window = default_window
         self.requests = defaultdict(list)  # {key: [timestamp1, timestamp2, ...]}
-        self.exempt_routes = {'/api/health'}
+        self.exempt_routes = {'/api/health', '/api/conversations', '/api/chat/stream'}
 
     def _get_key(self):
         """获取限流键（IP或用户ID）"""
@@ -119,7 +119,7 @@ def get_rate_limiter():
     """获取全局限流器实例"""
     global _rate_limiter
     if _rate_limiter is None:
-        _rate_limiter = RateLimiter(default_limit=10, default_window=60)
+        _rate_limiter = RateLimiter(default_limit=100, default_window=60)
     return _rate_limiter
 
 
@@ -183,9 +183,9 @@ def init_rate_limiting(app):
     """
     # 设置限流配置
     app.rate_limit_config = {
-        'default_limit': 10,
+        'default_limit': 100,
         'default_window': 60,
-        'burst_limit': 20
+        'burst_limit': 150
     }
 
     # 添加before_request处理全局限流

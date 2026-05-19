@@ -15,7 +15,7 @@ const STORAGE_KEY = 'simply-agent-settings'
 export const useSettingsStore = defineStore('settings', () => {
   // 状态 - 模型配置
   const provider = ref('openai')
-  const model = ref('gpt-3.5-turbo')
+  const model = ref('mimo-v2.5-pro')  // 默认使用第一个可用模型
   const apiKey = ref('')
   const apiEndpoint = ref('/api')
   const temperature = ref(0.7)
@@ -99,7 +99,7 @@ export const useSettingsStore = defineStore('settings', () => {
       try {
         const settings = JSON.parse(saved)
         provider.value = settings.provider ?? 'openai'
-        model.value = settings.model ?? 'gpt-3.5-turbo'
+        model.value = settings.model ?? 'mimo-v2.5-pro'
         apiKey.value = settings.apiKey ?? ''
         apiEndpoint.value = settings.apiEndpoint ?? '/api'
         temperature.value = settings.temperature ?? 0.7
@@ -117,7 +117,7 @@ export const useSettingsStore = defineStore('settings', () => {
   // 重置所有设置
   function $reset() {
     provider.value = 'openai'
-    model.value = 'gpt-3.5-turbo'
+    model.value = 'mimo-v2.5-pro'
     apiKey.value = ''
     apiEndpoint.value = '/api'
     temperature.value = 0.7

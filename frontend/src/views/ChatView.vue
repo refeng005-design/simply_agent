@@ -63,12 +63,23 @@ async function loadMoreConversations() {
   // Implement load more logic
 }
 
-function handleSelectConversation(convId) {
+async function handleSelectConversation(convId) {
   chatStore.setCurrentConversation(convId)
+  // 加载该对话的历史消息
+  try {
+    const result = await historyApi.getConversation(convId)
+    const messagesResult = await historyApi.getConversationMessages(convId)
+    if (messagesResult.messages) {
+      chatStore.loadConversation(convId, messagesResult.messages)
+    }
+  } catch (error) {
+    console.error('Failed to load conversation messages:', error)
+  }
 }
 
 async function handleDeleteConversation(convId) {
   try {
+    await historyApi.deleteConversation(convId)
     conversations.value = conversations.value.filter(c => c.id !== convId)
 
     if (chatStore.currentConversationId === convId) {

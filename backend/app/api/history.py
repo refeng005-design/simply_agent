@@ -79,6 +79,10 @@ def delete_conversation(conversation_id: str):
         if not conversation:
             return jsonify({"error": "Conversation not found"}), 404
 
+        # 先删除关联的消息
+        db.session.query(Message).filter_by(conversation_id=conversation_id).delete()
+
+        # 再删除对话
         db.session.delete(conversation)
         db.session.commit()
 

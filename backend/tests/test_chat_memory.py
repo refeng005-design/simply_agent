@@ -19,6 +19,7 @@ class TestChatMemory:
         mock_conv = Mock()
         mock_conv.id = "conv1"
         mock_conv.memory_enabled = True
+        mock_conv.title = "Test"
 
         mock_msg = Mock()
         mock_msg.to_dict.return_value = {"role": "user", "content": "Previous"}
@@ -26,26 +27,22 @@ class TestChatMemory:
         mock_service = Mock()
         mock_service.chat.return_value = {"content": "Response", "model": "gpt-4"}
 
-        with patch('app.api.chat.Conversation') as mock_conv_cls:
-            mock_conv_cls.query.get.return_value = mock_conv
+        with patch('app.api.chat.db') as mock_db:
+            mock_db.session.query.return_value.get.return_value = mock_conv
+            mock_db.session.query.return_value.filter_by.return_value.order_by.return_value.all.return_value = [mock_msg]
 
-            with patch('app.api.chat.Message') as mock_msg_cls:
-                mock_msg_query = Mock()
-                mock_msg_query.filter_by.return_value.order_by.return_value.all.return_value = [mock_msg]
-                mock_msg_cls.query = mock_msg_query
+            with patch('app.api.chat.ConversationService', return_value=mock_service):
+                with app.test_request_context(
+                    json={
+                        "messages": [{"role": "user", "content": "Hi"}],
+                        "model": "gpt-4",
+                        "conversation_id": "conv1"
+                    }
+                ):
+                    from app.api.chat import chat
+                    response = chat()
 
-                with patch('app.api.chat.ConversationService', return_value=mock_service):
-                    with app.test_request_context(
-                        json={
-                            "messages": [{"role": "user", "content": "Hi"}],
-                            "model": "gpt-4",
-                            "conversation_id": "conv1"
-                        }
-                    ):
-                        from app.api.chat import chat
-                        response = chat()
-
-                        assert response[1] == 200
+                    assert response[1] == 200
 
     def test_chat_with_memory_disabled(self):
         """禁用记忆的对话 - 不加载历史消息"""
@@ -54,12 +51,13 @@ class TestChatMemory:
         mock_conv = Mock()
         mock_conv.id = "conv1"
         mock_conv.memory_enabled = False
+        mock_conv.title = "Test"
 
         mock_service = Mock()
         mock_service.chat.return_value = {"content": "Response", "model": "gpt-4"}
 
-        with patch('app.api.chat.Conversation') as mock_conv_cls:
-            mock_conv_cls.query.get.return_value = mock_conv
+        with patch('app.api.chat.db') as mock_db:
+            mock_db.session.query.return_value.get.return_value = mock_conv
 
             with patch('app.api.chat.ConversationService', return_value=mock_service):
                 with app.test_request_context(
@@ -101,23 +99,22 @@ class TestChatMemory:
         mock_conv.id = "conv1"
         mock_conv.memory_enabled = True
 
-        with patch('app.api.history.Conversation') as mock_conv_cls:
-            mock_conv_cls.query.get.return_value = mock_conv
+        with patch('app.api.history.db') as mock_db:
+            mock_db.session.query.return_value.get.return_value = mock_conv
 
-            with patch('app.api.history.db') as mock_db:
-                with app.test_request_context():
-                    from app.api.history import toggle_conversation_memory
-                    response = toggle_conversation_memory("conv1", False)
+            with app.test_request_context():
+                from app.api.history import toggle_conversation_memory
+                response = toggle_conversation_memory("conv1", False)
 
-                    assert response[1] == 200
-                    assert mock_conv.memory_enabled == False
+                assert response[1] == 200
+                assert mock_conv.memory_enabled == False
 
     def test_toggle_conversation_memory_not_found(self):
         """切换不存在对话的记忆状态"""
         app = create_app()
 
-        with patch('app.api.history.Conversation') as mock_conv_cls:
-            mock_conv_cls.query.get.return_value = None
+        with patch('app.api.history.db') as mock_db:
+            mock_db.session.query.return_value.get.return_value = None
 
             with app.test_request_context():
                 from app.api.history import toggle_conversation_memory
@@ -132,6 +129,7 @@ class TestChatMemory:
         mock_conv = Mock()
         mock_conv.id = "conv1"
         mock_conv.memory_enabled = True
+        mock_conv.title = "Test"
 
         mock_msg = Mock()
         mock_msg.to_dict.return_value = {"role": "user", "content": "Previous"}
@@ -139,24 +137,20 @@ class TestChatMemory:
         mock_service = Mock()
         mock_service.stream_chat.return_value = iter([{"content": "Hi"}])
 
-        with patch('app.api.chat.Conversation') as mock_conv_cls:
-            mock_conv_cls.query.get.return_value = mock_conv
+        with patch('app.api.chat.db') as mock_db:
+            mock_db.session.query.return_value.get.return_value = mock_conv
+            mock_db.session.query.return_value.filter_by.return_value.order_by.return_value.all.return_value = [mock_msg]
 
-            with patch('app.api.chat.Message') as mock_msg_cls:
-                mock_msg_query = Mock()
-                mock_msg_query.filter_by.return_value.order_by.return_value.all.return_value = [mock_msg]
-                mock_msg_cls.query = mock_msg_query
+            with patch('app.api.chat.ConversationService', return_value=mock_service):
+                with app.test_request_context(
+                    json={
+                        "messages": [{"role": "user", "content": "Hello"}],
+                        "model": "gpt-4",
+                        "conversation_id": "conv1"
+                    }
+                ):
+                    from app.api.chat import stream_chat
+                    response = stream_chat()
 
-                with patch('app.api.chat.ConversationService', return_value=mock_service):
-                    with app.test_request_context(
-                        json={
-                            "messages": [{"role": "user", "content": "Hello"}],
-                            "model": "gpt-4",
-                            "conversation_id": "conv1"
-                        }
-                    ):
-                        from app.api.chat import stream_chat
-                        response = stream_chat()
-
-                        assert response.status_code == 200
-                        assert "text/event-stream" in response.content_type
+                    assert response.status_code == 200
+                    assert "text/event-stream" in response.content_type

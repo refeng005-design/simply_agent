@@ -18,11 +18,12 @@ def health_check():
 
 
 # 导入聊天 API 路由
-from .chat import chat, stream_chat
+from .chat import chat as _chat_view
+from .chat import stream_chat as _stream_chat_view
 
 # 注册聊天路由
-api_bp.add_url_rule('/chat', 'chat', chat, methods=['POST'])
-api_bp.add_url_rule('/chat/stream', 'stream_chat', stream_chat, methods=['GET', 'POST'])
+api_bp.add_url_rule('/chat', 'chat', _chat_view, methods=['POST'])
+api_bp.add_url_rule('/chat/stream', 'stream_chat', _stream_chat_view, methods=['GET', 'POST'])
 
 # 导入历史 API 路由
 from .history import (

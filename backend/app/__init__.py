@@ -4,6 +4,7 @@ Simply Agent Backend Application
 Flask应用工厂模块
 """
 from flask import Flask
+from flask_cors import CORS
 from .config import Config
 
 
@@ -29,6 +30,9 @@ def create_app(config_override=None):
     # 应用覆盖配置（主要用于测试）
     if config_override:
         app.config.update(config_override)
+
+    # 配置CORS
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
 
     # 注册蓝图和错误处理
     from .api import register_blueprints

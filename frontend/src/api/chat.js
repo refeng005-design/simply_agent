@@ -58,70 +58,92 @@ function sendMessageStream(request) {
   // 使用 fetch API 进行流式请求
   let abortController = null
   let reader = null
+  let processingStarted = false
 
   const stream = {
-    on: async (eventName, callback) => {
+    on: (eventName, callback) => {
       if (eventName !== 'message') {
         console.warn('Only "message" event is supported')
         return
       }
 
-      try {
-        abortController = new AbortController()
+      // 防止重复启动
+      if (processingStarted) {
+        console.warn('Stream already processing')
+        return
+      }
+      processingStarted = true
 
-        const response = await fetch('/api/chat/stream', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload),
-          signal: abortController.signal
-        })
+      // 启动异步处理（不阻塞调用者）
+      ;(async () => {
+        try {
+          console.log('[Chat Stream] Starting stream request:', payload)
+          abortController = new AbortController()
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
+          const response = await fetch('/api/chat/stream', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload),
+            signal: abortController.signal
+          })
 
-        reader = response.body.getReader()
-        const decoder = new TextDecoder()
-        let buffer = ''
+          console.log('[Chat Stream] Response received:', response.status, response.statusText)
 
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+          }
 
-          buffer += decoder.decode(value, { stream: true })
+          reader = response.body.getReader()
+          const decoder = new TextDecoder()
+          let buffer = ''
 
-          // 处理 SSE 格式
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || '' // 保留未完成的行
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) {
+              console.log('[Chat Stream] Stream done')
+              break
+            }
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6).trim()
-              if (data === '[DONE]') {
-                callback({ data: '[DONE]' })
-                continue
-              }
+            buffer += decoder.decode(value, { stream: true })
 
-              try {
-                const parsed = JSON.parse(data)
-                // 直接传递解析后的对象
-                callback(parsed)
-              } catch (e) {
-                console.error('Failed to parse SSE data:', data, e)
+            // 处理 SSE 格式
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || '' // 保留未完成的行
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6).trim()
+                console.log('[Chat Stream] Received data:', data)
+
+                if (data === '[DONE]') {
+                  console.log('[Chat Stream] Sending [DONE] to callback')
+                  callback({ data: '[DONE]' })
+                  continue
+                }
+
+                try {
+                  const parsed = JSON.parse(data)
+                  console.log('[Chat Stream] Parsed data:', parsed)
+                  // 直接传递解析后的对象
+                  callback(parsed)
+                } catch (e) {
+                  console.error('[Chat Stream] Failed to parse SSE data:', data, e)
+                }
               }
             }
           }
+        } catch (error) {
+          console.error('[Chat Stream] Error:', error)
+          if (error.name === 'AbortError') {
+            console.log('[Chat Stream] Stream aborted')
+          } else {
+            console.error('[Chat Stream] Stream error:', error)
+            callback({ error: error.message })
+          }
         }
-      } catch (error) {
-        if (error.name === 'AbortError') {
-          console.log('Stream aborted')
-        } else {
-          console.error('Stream error:', error)
-          callback({ error: error.message })
-        }
-      }
+      })()
     },
     close: () => {
       if (abortController) {

@@ -283,17 +283,25 @@ def stream_chat():
                 content = user_message.get('content', '')
                 conversation.title = content[:30] + ('...' if len(content) > 30 else '')
 
+            db.session.commit()
+
         # 用于收集完整响应
         full_response = []
 
         def generate():
             """生成 SSE 流"""
+            import json
             try:
+                # 首先发送 conversation_id，让前端能够关联对话
+                yield f"data: {json.dumps({'conversation_id': conversation_id})}\n\n"
+
                 for chunk in service.stream_chat(messages, model, **kwargs):
                     content = chunk.get("content", "")
                     if content:
                         full_response.append(content)
-                        yield f"data: {{\"content\": \"{content}\"}}\n\n"
+                        # 转义内容中的特殊字符
+                        escaped_content = json.dumps({'content': content})
+                        yield f"data: {escaped_content}\n\n"
 
                 # 保存完整的AI响应
                 if full_response:
@@ -307,7 +315,9 @@ def stream_chat():
 
                 yield "data: [DONE]\n\n"
             except Exception as e:
-                yield f"data: {{\"error\": \"{str(e)}\"}}\n\n"
+                # 错误消息需要转义
+                error_msg = str(e).replace('"', '\\"')
+                yield f"data: {{\"error\": \"{error_msg}\"}}\n\n"
 
         from flask import Response
         return Response(

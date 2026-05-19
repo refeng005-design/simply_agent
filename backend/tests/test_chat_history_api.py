@@ -13,8 +13,7 @@ from app import create_app
 class TestChatHistoryAPI:
     """测试对话历史 API"""
 
-    @patch('app.api.history.Conversation')
-    def test_get_conversations_list(self, mock_conv_cls):
+    def test_get_conversations_list(self):
         """获取对话列表"""
         app = create_app()
 
@@ -40,23 +39,20 @@ class TestChatHistoryAPI:
             "model_name": "gpt-3.5"
         }
 
-        # Mock the chained query methods
-        mock_query = Mock()
-        mock_query.order_by.return_value.limit.return_value.offset.return_value.all.return_value = [
-            mock_conv1, mock_conv2
-        ]
-        mock_conv_cls.query = mock_query
+        with patch('app.api.history.db') as mock_db:
+            mock_db.session.query.return_value.order_by.return_value.limit.return_value.offset.return_value.all.return_value = [
+                mock_conv1, mock_conv2
+            ]
 
-        with app.test_request_context():
-            from app.api.history import get_conversations
-            response = get_conversations()
+            with app.test_request_context():
+                from app.api.history import get_conversations
+                response = get_conversations()
 
-            assert response[1] == 200
-            data = response[0].get_json()
-            assert len(data["conversations"]) == 2
+                assert response[1] == 200
+                data = response[0].get_json()
+                assert len(data["conversations"]) == 2
 
-    @patch('app.api.history.Conversation')
-    def test_get_conversation_by_id(self, mock_conv_cls):
+    def test_get_conversation_by_id(self):
         """获取单个对话详情"""
         app = create_app()
 
@@ -72,65 +68,62 @@ class TestChatHistoryAPI:
             "memory_enabled": True
         }
 
-        mock_conv_cls.query.get.return_value = mock_conv
+        with patch('app.api.history.db') as mock_db:
+            mock_db.session.query.return_value.get.return_value = mock_conv
 
-        with app.test_request_context():
-            from app.api.history import get_conversation
-            response = get_conversation("conv1")
+            with app.test_request_context():
+                from app.api.history import get_conversation
+                response = get_conversation("conv1")
 
-            assert response[1] == 200
-            data = response[0].get_json()
-            assert data["id"] == "conv1"
+                assert response[1] == 200
+                data = response[0].get_json()
+                assert data["id"] == "conv1"
 
-    @patch('app.api.history.Conversation')
-    def test_get_conversation_not_found(self, mock_conv_cls):
+    def test_get_conversation_not_found(self):
         """对话不存在"""
         app = create_app()
 
-        mock_conv_cls.query.get.return_value = None
+        with patch('app.api.history.db') as mock_db:
+            mock_db.session.query.return_value.get.return_value = None
 
-        with app.test_request_context():
-            from app.api.history import get_conversation
-            response = get_conversation("nonexistent")
+            with app.test_request_context():
+                from app.api.history import get_conversation
+                response = get_conversation("nonexistent")
 
-            assert response[1] == 404
+                assert response[1] == 404
 
-    @patch('app.api.history.Conversation')
-    @patch('app.api.history.db')
-    def test_delete_conversation(self, mock_db, mock_conv_cls):
+    def test_delete_conversation(self):
         """删除对话"""
         app = create_app()
 
         mock_conv = Mock()
         mock_conv.id = "conv1"
-        mock_conv_cls.query.get.return_value = mock_conv
 
-        with app.test_request_context():
-            from app.api.history import delete_conversation
-            response = delete_conversation("conv1")
+        with patch('app.api.history.db') as mock_db:
+            mock_db.session.query.return_value.get.return_value = mock_conv
 
-            assert response[1] == 204
-            mock_db.session.delete.assert_called_once_with(mock_conv)
-            mock_db.session.commit.assert_called_once()
+            with app.test_request_context():
+                from app.api.history import delete_conversation
+                response = delete_conversation("conv1")
 
-    @patch('app.api.history.Conversation')
-    @patch('app.api.history.db')
-    def test_delete_conversation_not_found(self, mock_db, mock_conv_cls):
+                assert response[1] == 204
+                mock_db.session.delete.assert_called_once_with(mock_conv)
+                mock_db.session.commit.assert_called_once()
+
+    def test_delete_conversation_not_found(self):
         """删除不存在的对话"""
         app = create_app()
 
-        mock_conv_cls.query.get.return_value = None
+        with patch('app.api.history.db') as mock_db:
+            mock_db.session.query.return_value.get.return_value = None
 
-        with app.test_request_context():
-            from app.api.history import delete_conversation
-            response = delete_conversation("nonexistent")
+            with app.test_request_context():
+                from app.api.history import delete_conversation
+                response = delete_conversation("nonexistent")
 
-            assert response[1] == 404
+                assert response[1] == 404
 
-    @patch('app.api.history.Conversation')
-    @patch('app.api.history.Message')
-    @patch('app.api.history.db')
-    def test_get_conversation_messages(self, mock_db, mock_msg_cls, mock_conv_cls):
+    def test_get_conversation_messages(self):
         """获取对话的消息列表"""
         app = create_app()
 
@@ -157,19 +150,16 @@ class TestChatHistoryAPI:
             "content": "Hi there"
         }
 
-        mock_conv_cls.query.get.return_value = mock_conv
+        with patch('app.api.history.db') as mock_db:
+            mock_db.session.query.return_value.get.return_value = mock_conv
+            mock_db.session.query.return_value.filter_by.return_value.order_by.return_value.limit.return_value.offset.return_value.all.return_value = [
+                mock_msg1, mock_msg2
+            ]
 
-        # Mock the chained query methods
-        mock_msg_query = Mock()
-        mock_msg_query.filter_by.return_value.order_by.return_value.limit.return_value.offset.return_value.all.return_value = [
-            mock_msg1, mock_msg2
-        ]
-        mock_msg_cls.query = mock_msg_query
+            with app.test_request_context():
+                from app.api.history import get_conversation_messages
+                response = get_conversation_messages("conv1")
 
-        with app.test_request_context():
-            from app.api.history import get_conversation_messages
-            response = get_conversation_messages("conv1")
-
-            assert response[1] == 200
-            data = response[0].get_json()
-            assert len(data["messages"]) == 2
+                assert response[1] == 200
+                data = response[0].get_json()
+                assert len(data["messages"]) == 2

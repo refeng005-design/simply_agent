@@ -114,15 +114,25 @@ async function handleSendMessage(message) {
       model: currentModel.value,
       provider: provider,
       conversation_id: chatStore.currentConversationId,
-      rag_enabled: false,  // 暂时禁用 RAG
-      memory_enabled: false  // 暂时禁用记忆
+      rag_enabled: settingsStore.ragEnabled,
+      memory_enabled: settingsStore.memoryEnabled
     })
 
     // Handle streaming response
     stream.on('message', (data) => {
       // data 是解析后的对象，包含 content 或 error
+      console.log('[ChatWindow] Received data:', data)
 
-      if (data.data === '[DONE]') {
+      if (data.conversation_id) {
+        console.log('[ChatWindow] Setting conversation ID:', data.conversation_id)
+        chatStore.setCurrentConversation(data.conversation_id)
+        return
+      }
+
+      // 检查结束标记 - 修复：使用 data === '[DONE]' 而不是 data.data
+      const isDone = data === '[DONE]' || data.data === '[DONE]'
+      if (isDone) {
+        console.log('[ChatWindow] Stream done, completing message')
         chatStore.completeStreamingMessage()
         isProcessing.value = false
         chatStore.setLoading(false)
@@ -131,10 +141,13 @@ async function handleSendMessage(message) {
       }
 
       if (data.content) {
+        console.log('[ChatWindow] Appending content:', data.content)
         chatStore.appendStreamingContent(data.content)
+        console.log('[ChatWindow] Current messages:', chatStore.messages)
       }
 
       if (data.error) {
+        console.log('[ChatWindow] Error received:', data.error)
         chatStore.setError(data.error)
         chatStore.completeStreamingMessage()
         isProcessing.value = false
@@ -180,6 +193,13 @@ function handleResize() {
 
 onMounted(() => {
   window.addEventListener('resize', handleResize)
+
+  // 如果当前模型不在可用模型列表中，自动设置为第一个可用模型
+  const currentModelId = settingsStore.model
+  const isValidModel = availableModels.some(m => m.id === currentModelId)
+  if (!isValidModel && availableModels.length > 0) {
+    settingsStore.setModel(availableModels[0].id)
+  }
 })
 
 onUnmounted(() => {

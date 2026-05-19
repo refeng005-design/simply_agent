@@ -29,6 +29,7 @@ class Conversation(Model):
             'title': self.title,
             'model_name': self.model_name,
             'memory_enabled': bool(self.memory_enabled),
+            'message_count': self.message_count,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
